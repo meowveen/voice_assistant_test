@@ -1,0 +1,18 @@
+# SearXNG configuration for local API use by the voice assistant.
+# Place this at ./searxng/settings.yml (relative to where you run docker).
+
+use_default_settings: true
+
+server:
+  # Generate a random value with:  openssl rand -hex 32
+  secret_key: "a62be47441279362a1165b8c15b402936121abf404b777baa388068237d80c00"
+  # Disable the bot-limiter for local single-user use. Leaving it on can
+  # return 403s to script/curl requests that lack browser-like headers.
+  limiter: false
+
+search:
+  formats:
+    - html
+    - json          # REQUIRED: JSON is off by default; this enables the API
+  # Optional: trim to faster engines if default results feel slow.
+  # engines: [google, duckduckgo, bing, wikipedia]
