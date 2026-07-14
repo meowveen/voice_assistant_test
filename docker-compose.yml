@@ -1,0 +1,74 @@
+services:
+
+  # ─── Whisper.cpp (Speech-to-Text API) ─────────────────────────────────────
+  # OpenAI-compatible POST /inference endpoint
+  # Model is downloaded separately — mount it at /models
+  whisper:
+    image: ghcr.io/ggml-org/whisper.cpp:main
+    container_name: whisper
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    volumes:
+      - ./models/whisper:/models
+    command: >
+      whisper-server
+      --host 0.0.0.0
+      --port 8085
+      -m /models/ggml-base.en.bin
+      -t 4
+    # To download a model before first start, run:
+    #   docker run --rm -v ./models/whisper:/models ghcr.io/ggml-org/whisper.cpp:main \
+    #     "./models/download-ggml-model.sh base.en /models"
+
+  # ─── Kokoro (Text-to-Speech API) ───────────────────────────────────────────
+  # OpenAI-compatible POST /v1/audio/speech endpoint
+  # Model (~320 MB) is downloaded and cached on first start
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    container_name: kokoro
+    restart: unless-stopped
+    ports:
+      - "8880:8880"
+    volumes:
+      - kokoro-model-cache:/app/kokoro/models
+    # For NVIDIA GPU acceleration, use:
+    #   image: ghcr.io/remsky/kokoro-fastapi-gpu:latest
+    # and add:
+    #   deploy:
+    #     resources:
+    #       reservations:
+    #         devices:
+    #           - driver: nvidia
+    #             count: 1
+    #             capabilities: [gpu]
+
+  # ─── SearXNG (Private Metasearch) ─────────────────────────────────────────
+  # Web UI at http://localhost:8080
+  # JSON API: POST /search?q=...&format=json
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config/searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-changeme-use-a-long-random-string}
+      - SEARXNG_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  # ─── Redis (required by SearXNG for rate limiting / caching) ──────────────
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --save 30 1
+
+volumes:
+  kokoro-model-cache:
+  redis-data:
